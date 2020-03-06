@@ -1,0 +1,387 @@
+---
+title: "Predict the species of flower and compare the regression models"
+author: "Radhika Sood"
+output: html_document
+---
+
+#{.tabset .tabset-fade .tabset-pills} 
+
+## Summary 
+**Goal**: To compare the performace of the various models on predicting the species of the flower.
+
+**Approach**: Compared the train and test MSE for 7 different regression models.
+
+**Results**:  SVM and Random Forests gave 100% accuracy
+
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+library(kableExtra)
+library(rattle)
+library(corrplot)
+library(dplyr)
+library(ggplot2)
+library(GGally)
+library(ggthemes) 
+library(plotly) 
+library(tidyr)
+library(caTools)
+library(DT)
+library(gridExtra)
+library(ROCR)
+library(leaps)
+library(PRROC)
+library(boot)
+library(naniar)
+library(psych)
+library(grid)
+library(ggplot2)
+library(lattice)
+library(caret) # Use cross-validation
+library(class)
+library(rpart) # Decision Tree
+library(caretEnsemble)
+library(e1071)
+library(kernlab)
+```
+
+## Data Cleaning
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+iris <-read.csv("C:/Users/Radhika Sood/Desktop/R datasets/iris/iris.csv",  stringsAsFactors = FALSE, header = TRUE)
+nrow(iris)
+ncol(iris)
+colnames(iris)
+```
+
+Structure of the dataset
+```{r}
+names(iris) <- c("id", "SepalLength","SepalWidth","PetalLength","PetalWidth", "Species")
+str(iris)
+```
+
+The structure shows that the dataset has 5 numeric and 1 categorical variable.
+
+Check for null, duplicate values
+```{r}
+ summary(is.na(iris))
+ any(is.null(iris))
+ unique_values<-unique(iris)
+ dim(unique_values)[1]
+```
+
+
+Look at the missing values
+```{r}
+  naniar::gg_miss_var(iris) +
+  theme_minimal()+
+  labs(y = "Missing Values in the dataset")
+```
+The graph shows that there is no missing value
+
+Get final glimse of the data
+```{r}
+glimpse(iris)
+```
+
+## Data Visualization
+### Distribution 
+Check for distribution of variables in the dataset using histogram
+```{r}
+a <- hist(iris$SepalLength, 
+     main="Histogram for Sepal Length", 
+     xlab="iris$SepalLength", 
+     border="blue", 
+     col="green")
+    
+b <- hist(iris$SepalWidth, 
+     main="Histogram for Sepal Width", 
+     xlab="iris$SepalWidth", 
+     border="blue", 
+     col="yellow"
+     )
+c<- hist(iris$PetalLength, 
+     main="Histogram for Petal Length", 
+     xlab="iris$PetalLength", 
+     border="blue", 
+     col="pink"
+     )
+d <- hist(iris$PetalWidth, 
+     main="Histogram for Petal Width", 
+     xlab="iris$PetalWidth", 
+     border="blue" 
+     )
+
+#grid.arrange(grobs=glist(a,b,c,d))
+#gList(list(breaks=c(a,b,c,d)))
+#grid.arrange(a,b,c,d,ncol= 2)
+```
+```{r}
+a<-ggplot(data = iris, # Set data. 
+                      # (1) X variable; (2) Set what variable to separate by color.
+       mapping = aes(x = SepalLength, color = Species, fill = Species)) +
+       geom_bar() +  # Makes a bar graph.
+       scale_fill_brewer(palette = 'Accent') +  # Color of fill.
+       scale_color_brewer(palette = 'Accent') + # Color of outline.
+       theme_classic() +  # Set theme.
+       theme(plot.background = element_rect(fill = "grey97")) +  # Background color.
+       labs(title = 'Bar graph of sepal length by species',
+            x = 'SepalLength', y = 'Count')  # Title and axes lables. 
+b<- ggplot(data = iris, # Set data. 
+                      # (1) X variable; (2) Set what variable to separate by color.
+       mapping = aes(x = SepalWidth, color = Species, fill = Species)) +
+       geom_bar() +  # Makes a bar graph.
+       scale_fill_brewer(palette = 'Accent') +  # Color of fill.
+       scale_color_brewer(palette = 'Accent') + # Color of outline.
+       theme_classic() +  # Set theme.
+       theme(plot.background = element_rect(fill = "grey97")) +  # Background color.
+       labs(title = 'Bar graph of sepal width by species',
+       x = 'Sepal width', y = 'Count')  # Title and axes lables. 
+c<- ggplot(data = iris, # Set data. 
+      # (1) X variable; (2) Set what variable to separate by color.
+       mapping = aes(x = PetalLength, color = Species, fill = Species)) +
+       geom_bar() +  # Makes a bar graph.
+       scale_fill_brewer(palette = 'Accent') +  # Color of fill.
+       scale_color_brewer(palette = 'Accent') + # Color of outline.
+       theme_classic() +  # Set theme.
+       theme(plot.background = element_rect(fill = "grey97")) +  # Background color.
+       labs(title = 'Bar graph of petal length by species',
+       x = 'PetalLength', y = 'Count')  # Title and axes lables.
+
+d<-  ggplot(data = iris, # Set data. 
+                      # (1) X variable; (2) Set what variable to separate by color.
+       mapping = aes(x = PetalWidth, color = Species, fill = Species)) +
+       geom_bar() +  # Makes a bar graph.
+       scale_fill_brewer(palette = 'Accent') +  # Color of fill.
+       scale_color_brewer(palette = 'Accent') + # Color of outline.
+       theme_classic() +  # Set theme.
+       theme(plot.background = element_rect(fill = "grey97")) +  # Background color.
+       labs(title = 'Bar graph of petal length by species',
+       x = 'PetalWidth', y = 'Count')  # Title and axes lables.
+ 
+grid.arrange(a,b,c,d,ncol=2)
+```
+
+### Correlation
+```{r echo=FALSE}
+my_cols <- c("#00AFBB", "#E7B800", "#FC4E07")  
+pairs.panels(iris[,2:5],cex = 0.5, density = TRUE, ellipses=TRUE)
+corrplot(cor(iris[,2:5]),type = "lower", method="number")
+```
+There is strong correlation of SepalLength with PetalLength and PetalWidth. Also, PetalLength and PetalWidth are strongly correlated with each other.SepalLength and SepalWidth are strongly correlated with each other.
+
+### Outliers
+```{r pressure, echo=FALSE}
+a <- ggplot(iris, aes(x= iris$Species,y=iris$SepalLength,fill = factor(iris$Species))) + geom_boxplot(notch = TRUE) + theme(legend.position = "bottom")
+
+b <- ggplot(iris, aes(x= iris$Species,y=iris$SepalWidth,fill = factor(iris$Species))) + geom_boxplot(notch = TRUE) + theme(legend.position = "bottom")
+
+c<- ggplot(iris, aes(x= iris$Species,y=iris$PetalLength,fill = factor(iris$Species))) + geom_boxplot(notch = TRUE) + theme(legend.position = "bottom")
+
+d <- ggplot(iris, aes(x= iris$Species,y=iris$PetalWidth,fill = factor(iris$Species))) + geom_boxplot(notch = TRUE) + theme(legend.position = "bottom")
+
+grid.arrange(a,b,c,d,ncol=2)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+# Encoding the target feature as factor
+glimpse(iris)
+```
+
+
+```{r}
+# install.packages('caTools')
+
+set.seed(123)
+split = sample.split(iris$Species, SplitRatio = 0.75)
+training_set = subset(iris$Species, split == TRUE)
+test_set = subset(iris, split == FALSE)
+```
+
+## K-NN
+
+#### Encoding the target feature as factor
+```{r}
+factor_data <- iris[2:6]
+factor_data$Species = factor(factor_data$Species, labels = c(0, 1,2))
+```
+
+```{r}
+set.seed(1234)
+split = sample.split(factor_data$Species, SplitRatio = 0.75)
+training_set = subset(factor_data, split == TRUE)
+test_set = subset(factor_data, split == FALSE)
+```
+
+####Feature Scaling
+```{r}
+
+training_set[-5] = scale(training_set[-5])
+test_set[-5] = scale(test_set[-5])
+```
+
+#### Fitting K-NN to the Training set and Predicting the Test set results
+```{r}
+y_pred1 <- knn(training_set[, -5], test_set[, -5],training_set[, 5], k = 1,prob = TRUE)
+y_pred2 <- knn(training_set[, -5], test_set[, -5],training_set[, 5], k=2, prob=TRUE)
+y_pred3 <- knn(training_set[, -5], test_set[, -5],training_set[, 5], k=3, prob=TRUE)
+y_pred4 <- knn(training_set[, -5], test_set[, -5],training_set[, 5], k=4, prob=TRUE)
+y_pred5 <- knn(training_set[, -5], test_set[, -5],training_set[, 5], k=5, prob=TRUE)
+y_pred6 <- knn(training_set[, -5], test_set[, -5],training_set[, 5], k=6, prob=TRUE)
+```
+
+#### Making the Confusion Matrix
+```{r}
+cm1 = table(test_set$Species, y_pred1)
+cm2 = table(test_set$Species, y_pred2)
+cm3 = table(test_set$Species, y_pred3)
+cm4 = table(test_set$Species, y_pred4)
+cm5 = table(test_set$Species, y_pred5)
+cm6 = table(test_set$Species, y_pred6)
+```
+
+#### Clasification Accuracy
+The Accuracy from knn is:
+```{r}
+sum(y_pred1==test_set$Species)/length(test_set$Species)*100
+sum(y_pred2==test_set$Species)/length(test_set$Species)*100
+sum(y_pred3==test_set$Species)/length(test_set$Species)*100
+sum(y_pred4==test_set$Species)/length(test_set$Species)*100
+sum(y_pred5==test_set$Species)/length(test_set$Species)*100
+sum(y_pred6==test_set$Species)/length(test_set$Species)*100
+```
+
+##Decision Tree
+```{r}
+fitControl <- trainControl(method = "cv", number = 10, savePredictions = TRUE)
+```
+
+```{r}
+# Create model
+library(e1071)
+dt_model <- train(Species ~ ., # Set Y variable followed by '~'. The period indicates to include all variables for prediction. 
+                     data = training_set, # Data
+                     method = 'rpart', # Specify SVM model
+                     trControl = fitControl) # Use cross validation
+```
+
+The predicted accuracy the decision tree model by running it on resamples of the train data. 
+```{r}
+confusionMatrix(dt_model)
+```
+
+
+```{r}
+# Create object of importance of our variables 
+dt_importance <- varImp(dt_model)
+
+# Create plot of importance of variables
+ggplot(data = dt_importance, mapping = aes(x = dt_importance[,1])) + # Data & mapping
+  geom_boxplot() + # Create box plot
+  labs(title = "Variable importance: Decision tree model") + # Title
+  theme_light() # Theme
+```
+
+
+```{r}
+fancyRpartPlot(dt_model$finalModel, sub = '')
+```
+
+
+```{r}
+prediction_dt <- predict(dt_model, test_set)
+cm1 = table(test_set$Species, prediction_dt)
+```
+
+The Accuracy from decision tree is:
+```{r}
+sum(prediction_dt==test_set$Species)/length(test_set$Species)*100
+```
+
+##Random Forest
+```{r}
+rf_model <- train(
+                  Species ~ .,  # Set Y variable followed by "~." to include all variables in formula.
+                  method = 'rf',  # Set method as random forest.
+                  trControl = fitControl,  # Set cross validation settings
+                  data = training_set)  # Set data as train_data. 
+```
+
+
+The predicted accuracy the decision tree model by running it on resamples of the train data. 
+```{r}
+confusionMatrix(rf_model)
+```
+
+
+
+```{r}
+rf_predict <- predict(rf_model,test_set)
+rf_cm <- table(test_set$Species, rf_predict)
+```
+
+The accuracy from random forest is:
+```{r}
+sum(rf_predict==test_set$Species)/length(test_set$Species)*100
+```
+
+## NB
+```{r}
+nb_model <- train(Species ~ ., # Set y variable followed by '~'. The period indicates that we want to use all our variables for prediction.
+                     data = training_set,
+                     method = 'nb', # Specify Naive Bayes model
+                     trControl = fitControl) # Use cross validation
+```
+
+
+The predicted accuracy the Naive Bayes model by running it on resamples of the train data. 
+```{r}
+confusionMatrix(nb_model)
+```
+
+
+```{r}
+nb_predict <- predict(nb_model,test_set)
+nb_cm <- table(test_set$Species, nb_predict)
+nb_cm
+```
+
+
+```{r}
+
+```
+The accuracy from Naive Beyes is:
+```{r}
+sum(nb_predict==test_set$Species)/length(test_set$Species)*100
+```
+
+##SVM
+```{r}
+svm_model <- train(Species ~ ., # Set y variable followed by '~'. The period indicates that we want to use all our variables for prediction.
+                     data = training_set,
+                     method = 'svmLinear', # Specify SVM
+                     trControl = fitControl)
+```
+
+
+The predicted accuracy the SVM model by running it on resamples of the train data. 
+```{r}
+confusionMatrix(svm_model)
+```
+
+
+```{r}
+svm_predict <- predict(svm_model,test_set)
+svm_cm <- table(test_set$Species, svm_predict)
+
+```
+The accuracy from SVM is:
+```{r}
+sum(svm_predict==test_set$Species)/length(test_set$Species)*100
+```
+
